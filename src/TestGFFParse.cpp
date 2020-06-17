@@ -11,7 +11,7 @@ int main(int argc, char* argv[]) {
         std::exit(1);
     }
 
-    GffReader reader(argv[1]);
+    GffReader reader(argv[1], true, false);
     reader.readAll(true);
 
     std::cerr << "had count of " << reader.gflst.Count() << "\n";

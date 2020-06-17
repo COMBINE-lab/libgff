@@ -1,10 +1,22 @@
 #ifndef G_BASE_DEFINED
 #define G_BASE_DEFINED
-#define GCLIB_VERSION "0.10.3"
+#define GCLIB_VERSION "0.11.9"
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+
+#if defined(__WIN32) || defined(__WIN32__) || defined(_WIN32) || defined(_WIN64) || defined(__MINGW64__) || defined(__WINDOWS__)
+  #ifndef _WIN32
+    #define _WIN32
+  #endif
+  #ifndef _WIN64
+    #define _WIN64
+  #endif
+  #define __USE_MINGW_ANSI_STDIO 1
+  //#define __ISO_C_VISIBLE 1999
+#endif
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,12 +27,8 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-#if defined __WIN32__ || defined WIN32 || defined _WIN32 || defined _WIN32_
-  #ifndef __WIN32__
-    #define __WIN32__
-  #endif
+#ifdef _WIN32
   #include <windows.h>
-  #include <direct.h>
   #include <io.h>
   #define CHPATHSEP '\\'
   #undef off_t
@@ -32,10 +40,6 @@
 		#ifdef _fseeki64
 			#define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
 		#else
-			/*
-			#define _DEFINE_WIN32_FSEEKO
-			int fseeko(FILE *stream, off_t offset, int whence);
-			*/
 			#define fseeko fseek
 		#endif
   #endif
@@ -106,21 +110,32 @@ typedef uint64_t uint64;
 
 //-------------------
 
+#define GEXIT(a) { \
+fprintf(stderr, "Error: "); fprintf(stderr, a); \
+GError("Exiting from line %i in file %s\n",__LINE__,__FILE__); \
+}
+
 // Debug helpers
 #ifndef NDEBUG
  #define GASSERT(exp) ((exp)?((void)0):(void)GAssert(#exp,__FILE__,__LINE__))
+ #define GVERIFY(condition) \
+if (!(condition)) { \
+fprintf(stderr, "Assumption \"%s\"\nFailed in file %s: at line:%i\n", \
+#condition,__FILE__,__LINE__); \
+GEXIT(#condition);}
  #ifdef TRACE
-  #define GTRACE(exp)  (GMessage exp)
+  #define GTRACE(exp)  (GMessage(exp))
  #else
-  #define GTRACE(exp)  ((void)0)
+  #define GTRACE(exp)
  #endif
 #else
- #define GASSERT(exp) ((void)0)
- #define GTRACE(exp)  ((void)0)
+ #define GASSERT(exp)
+ #define GTRACE(exp)
+ #define GVERIFY(condition)
 #endif
 
-#define GERROR(exp) (GError exp)
-/**********************************  Macros  ***********************************/
+#define GERROR(exp) (GError(exp))
+
 // Abolute value
 #define GABS(val) (((val)>=0)?(val):-(val))
 
@@ -189,7 +204,6 @@ bool GstriEq(const char* a, const char* b);
 
 //basic swap template function
 template<class T> void Gswap(T& lhs, T& rhs) {
- //register T tmp=lhs;
  T tmp=lhs; //requires copy operator
  lhs=rhs;
  rhs=tmp;
@@ -202,7 +216,6 @@ bool GMalloc(pointer* ptr, unsigned long size); // Allocate memory
 bool GCalloc(pointer* ptr, unsigned long size); // Allocate and initialize memory
 bool GRealloc(pointer* ptr,unsigned long size); // Resize memory
 void GFree(pointer* ptr); // Free memory, resets ptr to NULL
-
 
 //int saprintf(char **retp, const char *fmt, ...);
 
@@ -231,6 +244,7 @@ char* loCase(const char* str);
 // changing string in place:
 char* strlower(char * str);
 char* strupper(char * str);
+
 
 //strstr but for memory zones: scans a memory region
 //for a substring:
@@ -298,29 +312,32 @@ class GSeg {
   GSeg(uint s=0,uint e=0) {
     if (s>e) { start=e;end=s; }
         else { start=s;end=e; }
-    }
+  }
   //check for overlap with other segment
   uint len() { return end-start+1; }
   bool overlap(GSeg* d) {
      //return start<d->start ? (d->start<=end) : (start<=d->end);
      return (start<=d->end && end>=d->start);
-     }
+  }
 
   bool overlap(GSeg& d) {
      //return start<d.start ? (d.start<=end) : (start<=d.end);
      return (start<=d.end && end>=d.start);
-     }
+  }
 
   bool overlap(GSeg& d, int fuzz) {
      //return start<d.start ? (d.start<=end+fuzz) : (start<=d.end+fuzz);
      return (start<=d.end+fuzz && end+fuzz>=d.start);
-     }
+  }
+
+  bool overlap(uint x) {
+	return (start<=x && x<=end);
+  }
 
   bool overlap(uint s, uint e) {
      if (s>e) { Gswap(s,e); }
-     //return start<s ? (s<=end) : (start<=e);
      return (start<=e && end>=s);
-     }
+  }
 
   //return the length of overlap between two segments
   int overlapLen(GSeg* r) {
@@ -343,15 +360,38 @@ class GSeg {
         if (start>rend) return 0;
         return (rend<end)? rend-start+1 : end-start+1;
         }
-     }
+  }
+
+  bool contains(GSeg* s) {
+	  return (start<=s->start && end>=s->end);
+  }
+  bool contained(GSeg* s) {
+	  return (s->start<=start && s->end>=end);
+  }
+
+  bool equals(GSeg& d){
+      return (start==d.start && end==d.end);
+  }
+  bool equals(GSeg* d){
+      return (start==d->start && end==d->end);
+  }
 
   //fuzzy coordinate matching:
-  bool coordMatch(GSeg* s, uint fuzz=0) {
+  bool coordMatch(GSeg* s, uint fuzz=0) { //caller must check for s!=NULL
     if (fuzz==0) return (start==s->start && end==s->end);
     uint sd = (start>s->start) ? start-s->start : s->start-start;
     uint ed = (end>s->end) ? end-s->end : s->end-end;
     return (sd<=fuzz && ed<=fuzz);
-    }
+  }
+  void expand(int by) { //expand in both directions
+	  start-=by;
+	  end+=by;
+  }
+  void expandInclude(uint rstart, uint rend) { //expand to include given coordinates
+	 if (rstart>rend) { Gswap(rstart,rend); }
+	 if (rstart<start) start=rstart;
+	 if (rend>end) end=rend;
+  }
   //comparison operators required for sorting
   bool operator==(GSeg& d){
       return (start==d.start && end==d.end);
@@ -409,7 +449,7 @@ template<class OBJ> class GDynArray {
     		Clear();
     		return *this;
     	}
-    	increaseCapacity(a.fCapacity); //set size
+    	growTo(a.fCapacity); //set size
         memcpy(fArray, a.fArray, sizeof(OBJ)*a.fCount);
         return *this;
     }
@@ -424,7 +464,7 @@ template<class OBJ> class GDynArray {
     	if (GDynArray_MAXCOUNT-delta<=fCapacity)
     		delta=GDynArray_MAXCOUNT-fCapacity;
     	if (delta<=1) GError("Error at GDynArray::Grow(): max capacity reached!\n");
-    	increaseCapacity(fCapacity + delta);
+    	growTo(fCapacity + delta);
     }
 #define GDynArray_ADD(item) \
     	if (fCount==MAX_UINT-1) GError("Error at GDynArray: cannot add item, maximum count reached!\n"); \
@@ -456,12 +496,27 @@ template<class OBJ> class GDynArray {
 
     uint Count() { return fCount; } // get size of array (elements)
     uint Capacity() { return fCapacity; }
-    void increaseCapacity(uint newcap) {
+    void growTo(uint newcap) {
     	if (newcap==0) { Clear(); return; }
-    	if (newcap <= fCapacity) return; //never shrinks (use Pack() for this)
+    	if (newcap <= fCapacity) return; //never shrink! (use Pack() for shrinking)
     	GREALLOC(fArray, newcap*sizeof(OBJ));
     	fCapacity=newcap;
     }
+
+    void append(OBJ* arr, uint count) {
+    	//fast adding of a series of objects
+    	growTo(fCount+count);
+    	memcpy(fArray+fCount, arr, count*sizeof(OBJ));
+    	fCount+=count;
+    }
+
+    void append(GDynArray<OBJ> arr) {
+    	//fast adding of a series of objects
+    	growTo(fCount+arr.fCount);
+    	memcpy(fArray+fCount, arr.fArray, arr.fCount*sizeof(OBJ));
+    	fCount+=arr.fCount;
+    }
+
     void Trim(int tcount=1) {
     	//simply cut (discard) the last tcount items
     	//new Count is now fCount-tcount
@@ -475,6 +530,15 @@ template<class OBJ> class GDynArray {
     	GREALLOC(fArray, newcap*sizeof(OBJ));
     	fCapacity=newcap;
     }
+
+    void zPack(OBJ z) { //shrink capacity to fCount+1 and adds a z terminator
+    	if (fCapacity-fCount<=1) { fArray[fCount]=z; return; }
+    	int newcap=fCount+1;
+    	GREALLOC(fArray, newcap*sizeof(OBJ));
+    	fCapacity=newcap;
+    	fArray[fCount]=z;
+    }
+
 
     inline void Shrink() { Pack(); }
 
@@ -500,7 +564,7 @@ template<class OBJ> class GDynArray {
 
     OBJ* operator()() { return fArray; }
 
-    //use below to prevent freeing the fArray pointer
+    //use methods below in order to prevent deallocation of fArray pointer on destruct
     //could be handy for adopting stack objects (e.g. cheap dynamic strings)
     void ForgetPtr() { byptr=true;  }
     void DetachPtr() { byptr=true;  }
@@ -520,7 +584,6 @@ int strsplit(char* str, GDynArray<char*>& fields, int maxfields=MAX_INT); //spli
 //splits a string by placing 0 where tab or space is found, setting fields[] to the beginning
 //of each field (stopping after maxfields); returns number of fields parsed
 
-//--------------------------------------------------------
 // ************** simple line reading class for text files
 //GLineReader -- text line reading/buffering class
 class GLineReader {
@@ -614,6 +677,7 @@ void writeFasta(FILE *fw, const char* seqid, const char* descr,
 //updates the char* pointer to be after the last digit parsed
 bool parseNumber(char* &p, double& v);
 bool parseDouble(char* &p, double& v); //just an alias for parseNumber
+bool parseFloat(char* &p, float& v);
 
 bool strToInt(char* p, int& i);
 bool strToUInt(char* p, uint& i);

@@ -10,6 +10,10 @@
 #define S_ISREG(mode)  (((mode) & S_IFMT) == S_IFREG)
 #endif
 
+//#ifdef _WIN32
+// int (WINAPIV * __vsnprintf)(char *, size_t, const char*, va_list) = _vsnprintf;
+//#endif
+
 //************************* Debug helpers **************************
 // Assert failed routine
 void GAssert(const char* expression, const char* filename, unsigned int lineno){
@@ -25,7 +29,7 @@ void GAssert(const char* expression, const char* filename, unsigned int lineno){
 
 // Error routine (prints error message and exits!)
 void GError(const char* format,...){
-  #ifdef __WIN32__
+  #ifdef _WIN32
     char msg[4096];
     va_list arguments;
     va_start(arguments,format);
@@ -50,7 +54,7 @@ void GError(const char* format,...){
 
 // Warning routine (just print message without exiting)
 void GMessage(const char* format,...){
-  #ifdef __WIN32__
+  #ifdef _WIN32
     char msg[4096];
     va_list arguments;
     va_start(arguments,format);
@@ -71,7 +75,8 @@ void GMessage(const char* format,...){
 // Allocate memory
 bool GMalloc(pointer* ptr,unsigned long size){
   //GASSERT(ptr);
-  if (size!=0) *ptr=malloc(size);
+  if (size!=0)
+	  *ptr=malloc(size);
   return *ptr!=NULL;
   }
 
@@ -150,16 +155,17 @@ int Gstrcmp(const char* a, const char* b, int n) {
 
 int G_mkdir(const char* path, int perms = (S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) ) {
    //int perms=(S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) ) {
- #ifdef __WIN32__
-     return _mkdir(path);
+ #ifdef _WIN32
+     //return _mkdir(path);
+	 return CreateDirectoryA(path, NULL);
  #else
-     return  mkdir(path, perms);
+     return mkdir(path, perms);
  #endif
 }
 
 
 void Gmktempdir(char* templ) {
-#ifdef __WIN32__
+#ifdef _WIN32
   int blen=strlen(templ);
   if (_mktemp_s(templ, blen)!=0)
 	  GError("Error creating temp dir %s!\n", templ);
@@ -233,46 +239,18 @@ FILE* Gfopen(const char *path, char *mode) {
 
 bool GstrEq(const char* a, const char* b) {
 	 if (a==NULL || b==NULL) return false;
-	 register int i=0;
-	 while (a[i]==b[i]) {
-		 if (a[i]==0) return true;
-		 ++i;
-	 }
-	 return false;
+	 return (strcmp(a,b)==0);
 }
 
 bool GstriEq(const char* a, const char* b) {
 	 if (a==NULL || b==NULL) return false;
-	 register int i=0;
-	 while (tolower((unsigned char)a[i])==tolower((unsigned char)b[i])) {
-		 if (a[i]==0) return true;
-	 }
-	 return false;
+	 return (strcasecmp(a,b)==0);
 }
 
 int Gstricmp(const char* a, const char* b, int n) {
  if (a==NULL || b==NULL) return a==NULL ? -1 : 1;
- register int ua, ub;
- if (n<0) {
-   while ((*a!=0) && (*b!=0)) {
-    ua=tolower((unsigned char)*a);
-    ub=tolower((unsigned char)*b);
-    a++;b++;
-    if (ua!=ub) return ua < ub ? -1 : 1;
-    }
-    return (*a == 0) ? ( (*b == 0) ? 0 : -1 ) : 1 ;
-  }
- else {
-   while (n && (*a!=0) && (*b!=0)) {
-    ua=tolower((unsigned char)*a);
-    ub=tolower((unsigned char)*b);
-    a++;b++;n--;
-    if (ua!=ub) return ua < ub ? -1 : 1;
-    }
-    //return (*a == 0) ? ( (*b == 0) ? 0 : -1 ) : 1 ;
-   if (n==0) return 0;
-   else { return (*a == 0) ? ( (*b == 0) ? 0 : -1 ) : 1 ; }
-  }
+ if (n>=0) return strncasecmp(a,b,n);
+      else return strcasecmp(a,b);
 }
 
 int strsplit(char* str, GDynArray<char*>& fields, const char* delim, int maxfields) {
@@ -405,6 +383,7 @@ char* rstrchr(char* str, char ch) {  /* returns a pointer to the rightmost
     }
  return NULL;
 }
+
 
 
 /* DOS/UNIX safer fgets : reads a text line from a (binary) file and
@@ -658,8 +637,8 @@ char* rstrstr(const char* rstart, const char *lend, const char* substr) {
 
 //hash function used for strings in GHash
 int strhash(const char* str){
-  register int h=0;
-  register int g;
+  int h=0;
+  int g;
   while (*str) {
     h=(h<<4)+*str++;
     g=h&0xF0000000;
@@ -745,9 +724,9 @@ int fileExists(const char* fname) {
 }
 
 int64 fileSize(const char* fpath) {
-#ifdef __WIN32__
+#ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesEx(name, GetFileExInfoStandard, &fad))
+    if (!GetFileAttributesEx(fpath, GetFileExInfoStandard, &fad))
         return -1; // error condition, could call GetLastError to find out more
     LARGE_INTEGER size;
     size.HighPart = fad.nFileSizeHigh;
@@ -787,26 +766,37 @@ bool parseNumber(char* &p, double& v) {
  return true;
 }
 
-
 bool parseDouble(char* &p, double& v) {
  return parseNumber(p,v);
+}
+
+bool parseFloat(char* &p, float& v) {
+ double dv;
+ bool parsed=parseNumber(p,dv);
+ if (parsed) v=(float)dv;
+ return parsed;
 }
 
 bool parseInt(char* &p, int& i) { //pointer p is advanced after the number
  while (*p==' ' || *p=='\t') p++;
  char* start=p;
+ char* p0=p;
  if (*p=='-') p++;
-       else if (*p=='+') { p++;start++; }
- while ((*p>='1' && *p<='9') || *p=='0') p++;
- //now p is on a non-digit;
- if (*start=='-' && p==start+1) return false;
- char saved=*p;
- *p='\0';
- char* endptr=p;
+      else if (*p=='+') { p++;start++; }
+ char* atdigits=p;
+ while (*p>='0' && *p<='9') p++;
+ //now p should be past the digits
+ if (atdigits==p) {//no digits found!
+	 p=p0;
+	 return false;
+ }
+ char* endptr=NULL;
  long l=strtol(start,&endptr,10);
  i=(int)l;
- *p=saved;
- if (endptr!=p || i!=l) return false;
+ if (endptr!=p || endptr==start || i!=l) {
+	 p=p0;
+	 return false;
+ }
  return true;
 }
 
@@ -814,54 +804,56 @@ bool strToInt(char* p, int& i) {
 	 while (*p==' ' || *p=='\t') p++;
 	 char* start=p;
 	 if (*p=='-') p++;
-	       else if (*p=='+') { p++;start++; }
-	 while ((*p>='1' && *p<='9') || *p=='0') p++;
-	 //now p is on a non-digit;
-	 if (*start=='-' && p==start+1) return false;
-	 char saved=*p;
-	 *p='\0';
-	 char* endptr=p;
+	      else if (*p=='+') { p++;start++; }
+	 char* atdigits=p;
+	 while (*p>='0' && *p<='9') p++;
+	 //now p should be past the digits
+	 if (atdigits==p) //no digits found!
+		 return false;
+	 char* endptr=NULL;
 	 long l=strtol(start,&endptr,10);
 	 i=(int)l;
-	 *p=saved;
-	 if (endptr!=p || i!=l) return false;
+	 if (endptr!=p || endptr==start || i!=l)
+		 return false;
 	 return true;
 }
 
 bool strToUInt(char* p, uint& i) {
-	 while (*p==' ' || *p=='\t') p++;
-	 char* start=p;
-	 if (*p=='-') return false;
-	       else if (*p=='+') { p++;start++; }
-	 while ((*p>='1' && *p<='9') || *p=='0') p++;
-	 //now p is on a non-digit;
-	 if (*start=='-' && p==start+1) return false;
-	 char saved=*p;
-	 *p='\0';
-	 char* endptr=p;
-	 unsigned long l=strtoul(start,&endptr,10);
-	 i=(uint) l;
-	 *p=saved;
-	 if (endptr!=p || i!=l) return false;
-	 return true;
+	while (*p==' ' || *p=='\t') p++;
+	char* start=p;
+	if (*p=='-') return false;
+	else if (*p=='+') { p++;start++; }
+	while (*p>='0' && *p<='9') p++;
+	//now p is on a non-digit;
+	if (start==p) return false;
+	char* endptr=NULL;
+	unsigned long l=strtoul(start,&endptr,10);
+	i=(uint) l;
+	if (endptr!=p || endptr==start || i!=l)
+		return false;
+	return true;
 }
 
 
 bool parseUInt(char* &p, uint& i) { //pointer p is advanced after the number
  while (*p==' ' || *p=='\t') p++;
+ char* p0=p;
  char* start=p;
  if (*p=='-') return false;
        else if (*p=='+') { p++;start++; }
- while ((*p>='1' && *p<='9') || *p=='0') p++;
+ while (*p>='0' && *p<='9') p++;
  //now p is on a non-digit;
- if (*start=='-' && p==start+1) return false;
- char saved=*p;
- *p='\0';
- char* endptr=p;
+ if (start==p) {
+	 p=p0;
+	 return false;
+ }
+ char* endptr=NULL;
  unsigned long l=strtoul(start,&endptr,10);
  i=(uint) l;
- *p=saved;
- if (endptr!=p || i!=l) return false;
+ if (endptr!=p || endptr==start || i!=l) {
+	 p=p0;
+	 return false;
+ }
  return true;
 }
 
@@ -929,8 +921,8 @@ void writeFasta(FILE *fw, const char* seqid, const char* descr,
  }
 
 char* commaprintnum(uint64 n) {
-  int comma = ',';
   char retbuf[48];
+  int comma = ',';
   char *p = &retbuf[sizeof(retbuf)-1];
   int i = 0;
   *p = '\0';
