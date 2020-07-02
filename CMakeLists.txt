@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(gff)
+project(libgff)
 
 set(INCLUDE_INSTALL_DIR include/)
 set(LIB_INSTALL_DIR lib/)
@@ -27,7 +27,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(PROJECT_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include)
 set(PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-set( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -O3 -Wall -D_FILE_OFFSET_BITS=64" )
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -O3 -Wall -D_FILE_OFFSET_BITS=64" )
 
 set(GFFLib_SRCS
     ${PROJECT_SOURCE_DIR}/codons.cpp
