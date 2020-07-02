@@ -1,6 +1,19 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.12)
 PROJECT(gff)
 
+set(ver_major 1)
+set(ver_minor 3)
+set(ver_patch 0)
+
+set(CPACK_PACKAGE_VERSION_MAJOR ${ver_major})
+set(CPACK_PACKAGE_VERSION_MINOR ${ver_minor})
+set(CPACK_PACKAGE_VERSION_PATCH ${ver_patch})
+
+set(CPACK_PACKAGE_VERSION "${ver_major}.${ver_minor}.${ver_patch}")
+message("version: ${CPACK_PACKAGE_VERSION}")
+
+set(PROJECT_VERSION ${CPACK_PACKAGE_VERSION})
+
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
