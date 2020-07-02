@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.12)
-project(libgff)
+project(gff)
+
+message(STATUS "Install prefix : ${CMAKE_INSTALL_PREFIX}")
 
 set(INCLUDE_INSTALL_DIR include/)
 set(LIB_INSTALL_DIR lib/)
-set(SYSCONFIG_INSTALL_DIR etc/libgff/)
 
 include(CMakePackageConfigHelpers)
 
@@ -48,17 +49,17 @@ target_link_libraries(TestGFFParse ${PROJECT_NAME})
 
 
 
-configure_package_config_file(LibGFFConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/LibGFFConfig.cmake
-  INSTALL_DESTINATION ${LIB_INSTALL_DIR}/LibGFF/cmake
-  PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR)
+configure_package_config_file(libgffConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/libgffConfig.cmake
+  INSTALL_DESTINATION ${LIB_INSTALL_DIR}/libgff/cmake
+  PATH_VARS INCLUDE_INSTALL_DIR LIB_INSTALL_DIR)
 write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/LibGFFConfigVersion.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/libgffConfigVersion.cmake
   VERSION ${ver_major}.${ver_minor}.${ver_patch}
   COMPATIBILITY SameMajorVersion )
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/LibGFFConfig.cmake
-              ${CMAKE_CURRENT_BINARY_DIR}/LibGFFConfigVersion.cmake
-        DESTINATION ${LIB_INSTALL_DIR}/LibGFF/cmake )
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libgffConfig.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/libgffConfigVersion.cmake
+        DESTINATION ${LIB_INSTALL_DIR}/libgff/cmake )
 
 install(FILES ${CMAKE_BINARY_DIR}/lib${PROJECT_NAME}.a DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 install(DIRECTORY ${PROJECT_INCLUDE_DIR} DESTINATION ${CMAKE_INSTALL_PREFIX})
