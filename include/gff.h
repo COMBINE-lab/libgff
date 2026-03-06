@@ -96,8 +96,11 @@ struct GffScore {
 		else fprintf(outf, "%.*f", precision, score);
 	}
 	void sprint(char* outs) {
-		if (precision<0) sprintf(outs, ".");
-		else sprintf(outs, "%.*f", precision, score);
+		if (precision<0) {
+			outs[0]='.';
+			outs[1]='\0';
+		}
+		else snprintf(outs, 128, "%.*f", precision, score);
 	}
 	bool operator<(GffScore& v) {
 		return this->score<v.score;

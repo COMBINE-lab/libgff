@@ -18,7 +18,7 @@
 // Assert failed routine
 void GAssert(const char* expression, const char* filename, unsigned int lineno){
   char msg[4096];
-  sprintf(msg,"%s(%d): ASSERT(%s) failed.\n",filename,lineno,expression);
+  snprintf(msg, sizeof(msg), "%s(%d): ASSERT(%s) failed.\n", filename, lineno, expression);
   fprintf(stderr,"%s",msg);
   #ifdef DEBUG
   // modify here if you [don't] want a core dump

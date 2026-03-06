@@ -165,7 +165,7 @@ GStr::GStr(const int i): my_data(&null_data) {
  readbuf=NULL;
  readbufsize=0;
  char buf[20];
- sprintf(buf,"%d",i);
+ snprintf(buf, sizeof(buf), "%d", i);
  const int len = ::strlen(buf);
  prep_data(len);
  ::memcpy(chrs(), buf, len);
@@ -178,7 +178,7 @@ GStr::GStr(const double f): my_data(&null_data) {
  readbuf=NULL;
  readbufsize=0;
  char buf[20];
- sprintf(buf,"%f",f);
+ snprintf(buf, sizeof(buf), "%f", f);
  const int len = ::strlen(buf);
  prep_data(len);
  ::memcpy(chrs(), buf, len);
@@ -236,7 +236,7 @@ GStr& GStr::operator=(const char *s) {
 GStr& GStr::operator=(const double f) {
  make_unique(); //edit operation ahead
  char buf[20];
- sprintf(buf,"%f",f);
+ snprintf(buf, sizeof(buf), "%f", f);
  const int len = ::strlen(buf);
  prep_data(len);
  ::memcpy(my_data->chars, buf, len);
@@ -246,7 +246,7 @@ GStr& GStr::operator=(const double f) {
 GStr& GStr::operator=(const int i) {
  make_unique(); //edit operation ahead
  char buf[20];
- sprintf(buf,"%d",i);
+ snprintf(buf, sizeof(buf), "%d", i);
  const int len = ::strlen(buf);
  prep_data(len);
  ::memcpy(my_data->chars, buf, len);
@@ -317,31 +317,31 @@ bool GStr::operator!=(const char *s) const {
 
 GStr& GStr::append(int i) {
  char buf[20];
- sprintf(buf,"%d",i);
+ snprintf(buf, sizeof(buf), "%d", i);
  return append(buf);
  }
 
 GStr& GStr::append(uint i) {
  char buf[20];
- sprintf(buf,"%u",i);
+ snprintf(buf, sizeof(buf), "%u", i);
  return append(buf);
  }
 
 GStr& GStr::append(long l) {
  char buf[20];
- sprintf(buf,"%ld",l);
+ snprintf(buf, sizeof(buf), "%ld", l);
  return append(buf);
  }
 
 GStr& GStr::append(unsigned long l) {
  char buf[20];
- sprintf(buf,"%lu", l);
+ snprintf(buf, sizeof(buf), "%lu", l);
  return append(buf);
  }
 
 GStr& GStr::append(double f) {
  char buf[30];
- sprintf(buf,"%f",f);
+ snprintf(buf, sizeof(buf), "%f", f);
  return append(buf);
  }
 
@@ -394,13 +394,22 @@ bool GStr::contains(char c) const {
 GStr& GStr::format(const char *fmt,...) {
 // Format as in sprintf
   make_unique(); //edit operation ahead
+  int buflen = (int)strlen(fmt) + 1024;
   char* buf;
-  GMALLOC(buf, strlen(fmt)+1024);
+  GMALLOC(buf, buflen);
   va_list arguments;
   va_start(arguments,fmt);
-  //+1K buffer, should be enough for common expressions
-  int len=vsprintf(buf,fmt,arguments);
+  int len = vsnprintf(buf, buflen, fmt, arguments);
   va_end(arguments);
+  if (len >= buflen) {
+    GFREE(buf);
+    buflen = len + 1;
+    GMALLOC(buf, buflen);
+    va_start(arguments,fmt);
+    len = vsnprintf(buf, buflen, fmt, arguments);
+    va_end(arguments);
+  }
+  if (len < 0) len = 0;
   prep_data(len); //this also adds the '\0' at the end!
                      //and sets the right len
   ::memcpy(chrs(), buf, len);
@@ -411,13 +420,23 @@ GStr& GStr::format(const char *fmt,...) {
 GStr& GStr::appendfmt(const char *fmt,...) {
 // Format as in sprintf
   make_unique(); //edit operation ahead
+  int buflen = (int)strlen(fmt) + 1024;
   char* buf;
-  GMALLOC(buf, strlen(fmt)+1024);
+  GMALLOC(buf, buflen);
   va_list arguments;
   va_start(arguments,fmt);
-  //+1K buffer, should be enough for common expressions
-  vsprintf(buf,fmt,arguments);
+  int len = vsnprintf(buf, buflen, fmt, arguments);
   va_end(arguments);
+  if (len >= buflen) {
+    GFREE(buf);
+    buflen = len + 1;
+    GMALLOC(buf, buflen);
+    va_start(arguments,fmt);
+    len = vsnprintf(buf, buflen, fmt, arguments);
+    va_end(arguments);
+  }
+  if (len < 0) len = 0;
+  buf[len] = '\0';
   append(buf);
   GFREE(buf);
   return *this;
@@ -660,7 +679,7 @@ GStr GStr::operator+(const char *s) const {
 
 GStr GStr::operator+(const int i) const {
     char buf[20];
-    sprintf(buf, "%d", i);
+    snprintf(buf, sizeof(buf), "%d", i);
     const int s_length = ::strlen(buf);
     GStr newstring;
     newstring.prep_data(length() + s_length);
@@ -671,7 +690,7 @@ GStr GStr::operator+(const int i) const {
 
 GStr GStr::operator+(const char c) const {
     char buf[4];
-    sprintf(buf, "%c", c);
+    snprintf(buf, sizeof(buf), "%c", c);
     const int s_length = ::strlen(buf);
     GStr newstring;
     newstring.prep_data(length() + s_length);
@@ -682,7 +701,7 @@ GStr GStr::operator+(const char c) const {
 
 GStr GStr::operator+(const double f) const {
     char buf[30];
-    sprintf(buf, "%f", f);
+    snprintf(buf, sizeof(buf), "%f", f);
     const int s_length = ::strlen(buf);
     GStr newstring;
     newstring.prep_data(length() + s_length);
@@ -1482,4 +1501,3 @@ void GStr::invalid_index_error(const char *fname) {
     GError("GStr:: %s  - invalid index\n", fname);
 }
 //****************************************************************************
-
